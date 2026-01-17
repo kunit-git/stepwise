@@ -1063,6 +1063,30 @@
                     renderTaskList();
                 }
             }
+            // 1 - Set status to 'new' (only for leaf nodes)
+            else if (e.key === '1' && selectedNode && selectedNode.isLeaf) {
+                e.preventDefault();
+                selectedNode.status = 'new';
+                updateParentStatuses(taskList);
+                saveState();
+                renderTaskList();
+            }
+            // 2 - Set status to 'in-progress' (only for leaf nodes)
+            else if (e.key === '2' && selectedNode && selectedNode.isLeaf) {
+                e.preventDefault();
+                selectedNode.status = 'in-progress';
+                updateParentStatuses(taskList);
+                saveState();
+                renderTaskList();
+            }
+            // 3 - Set status to 'done' (only for leaf nodes)
+            else if (e.key === '3' && selectedNode && selectedNode.isLeaf) {
+                e.preventDefault();
+                selectedNode.status = 'done';
+                updateParentStatuses(taskList);
+                saveState();
+                renderTaskList();
+            }
         });
 
         window.onload = function() {
