@@ -424,10 +424,10 @@
             calculateCompletionPercentage() {
                 if (this.isLeaf) return this.status === 'done' ? 100 : 0;
                 if (!this.children.length) return 0;
-                
+
                 let totalLeafNodes = 0;
                 let completedLeafNodes = 0;
-                
+
                 function countLeafNodes(node) {
                     if (node.isLeaf) {
                         totalLeafNodes++;
@@ -436,9 +436,34 @@
                         node.children.forEach(countLeafNodes);
                     }
                 }
-                
+
                 countLeafNodes(this);
                 return totalLeafNodes > 0 ? Math.round((completedLeafNodes / totalLeafNodes) * 100) : 0;
+            }
+
+            countTasksByStatus() {
+                if (this.isLeaf) {
+                    return {
+                        new: this.status === 'new' ? 1 : 0,
+                        inProgress: this.status === 'in-progress' ? 1 : 0,
+                        done: this.status === 'done' ? 1 : 0
+                    };
+                }
+
+                let counts = { new: 0, inProgress: 0, done: 0 };
+
+                function countByStatus(node) {
+                    if (node.isLeaf) {
+                        if (node.status === 'new') counts.new++;
+                        else if (node.status === 'in-progress') counts.inProgress++;
+                        else if (node.status === 'done') counts.done++;
+                    } else {
+                        node.children.forEach(countByStatus);
+                    }
+                }
+
+                countByStatus(this);
+                return counts;
             }
         }
 
@@ -646,7 +671,15 @@
                 // Add node text in the middle
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'node-text';
-                nameSpan.textContent = `${currentNode.name} (${completionPercentage}%)`;
+
+                // For non-leaf nodes, show task counts
+                if (!currentNode.isLeaf) {
+                    const taskCounts = currentNode.countTasksByStatus();
+                    nameSpan.textContent = `${currentNode.name} (${completionPercentage}%, ${taskCounts.new} new, ${taskCounts.inProgress} in-progress)`;
+                } else {
+                    nameSpan.textContent = `${currentNode.name} (${completionPercentage}%)`;
+                }
+
                 nameSpan.style.cursor = 'pointer';
                 nodeDiv.appendChild(nameSpan);
 
