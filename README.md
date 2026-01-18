@@ -2,6 +2,8 @@
 
 A lightweight, browser-based hierarchical task management application. StepWise helps you break down projects into nested tasks, track progress, and organize your work visually.
 
+This application was developed with [Claude Code](https://claude.ai/claude-code).
+
 ## Features
 
 - **Hierarchical Task Structure**: Create nested tasks with unlimited depth to break down complex projects
