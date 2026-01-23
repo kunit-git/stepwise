@@ -334,6 +334,136 @@
             padding: 8px;
             background: white;
         }
+
+        /* Timeline View Styles */
+        .view-toggle {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .view-toggle button {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 0.85em;
+        }
+
+        .view-toggle button.active {
+            background: #5568d3;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .timeline-container {
+            position: relative;
+            min-height: 200px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .timeline-lane {
+            position: relative;
+            height: 40px;
+            margin: 4px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .timeline-bar {
+            position: absolute;
+            height: 32px;
+            top: 4px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+        }
+
+        .timeline-bar:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .timeline-bar.selected {
+            border: 2px solid #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .timeline-bar.leaf.new {
+            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+            color: #495057;
+        }
+
+        .timeline-bar.leaf.in-progress {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffc107 100%);
+            color: #856404;
+        }
+
+        .timeline-bar.leaf.done {
+            background: linear-gradient(135deg, #d4edda 0%, #28a745 100%);
+            color: #155724;
+        }
+
+        .timeline-bar.parent.new {
+            background: linear-gradient(135deg, #d6d8db 0%, #ced4da 100%);
+            color: #343a40;
+        }
+
+        .timeline-bar.parent.in-progress {
+            background: linear-gradient(135deg, #ffe69c 0%, #ffca2c 100%);
+            color: #664d03;
+        }
+
+        .timeline-bar.parent.done {
+            background: linear-gradient(135deg, #badbcc 0%, #198754 100%);
+            color: #0a3622;
+        }
+
+        .timeline-header {
+            display: flex;
+            margin-bottom: 10px;
+            padding: 0 20px;
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+
+        .timeline-scale {
+            display: flex;
+            flex: 1;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+        }
+
+        .timeline-scale-mark {
+            flex: 1;
+            text-align: center;
+            border-left: 1px solid #dee2e6;
+        }
+
+        .timeline-scale-mark:first-child {
+            border-left: none;
+        }
+
+        .timeline-lanes-container {
+            position: relative;
+        }
+
+        .timeline-grid-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #e9ecef;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -353,6 +483,14 @@
                 <div class="stat-item">
                     <span class="stat-label">Progress:</span>
                     <span class="stat-value" id="overallProgress">0%</span>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">View</div>
+                <div class="view-toggle">
+                    <button id="hierarchyViewBtn" class="active" onclick="setViewMode('hierarchy')">📋 Hierarchy</button>
+                    <button id="timelineViewBtn" onclick="setViewMode('timeline')">📊 Timeline</button>
                 </div>
             </div>
 
@@ -474,6 +612,7 @@
         let historyIndex = -1;
         let maxHistorySize = 50;
         let searchTerm = '';
+        let viewMode = 'hierarchy'; // 'hierarchy' or 'timeline'
 
         // Undo/Redo functionality
         function saveState() {
@@ -512,7 +651,7 @@
             taskList = convertToNode(JSON.parse(state));
             selectedNode = null;
             updateParentStatuses(taskList);
-            renderTaskList();
+            renderView();
             updateUndoRedoButtons();
         }
 
@@ -526,7 +665,7 @@
         // Search functionality
         function searchNodes() {
             searchTerm = document.getElementById('searchBox').value.toLowerCase();
-            renderTaskList();
+            renderView();
         }
 
         function matchesSearch(node) {
@@ -541,6 +680,193 @@
                 return node.children.some(child => hasMatchingDescendant(child));
             }
             return false;
+        }
+
+        // View mode toggle
+        function setViewMode(mode) {
+            viewMode = mode;
+            document.getElementById('hierarchyViewBtn').classList.toggle('active', mode === 'hierarchy');
+            document.getElementById('timelineViewBtn').classList.toggle('active', mode === 'timeline');
+            renderView();
+        }
+
+        function renderView() {
+            if (viewMode === 'timeline') {
+                renderTimelineView();
+            } else {
+                renderTaskList();
+            }
+        }
+
+        // Timeline View
+        function renderTimelineView() {
+            const element = document.getElementById('tasklist');
+            if (!element) return;
+            element.innerHTML = '';
+
+            // Get max depth of the tree
+            function getMaxDepth(node, depth = 0) {
+                if (node.isLeaf || !node.children.length) return depth;
+                return Math.max(...node.children.map(child => getMaxDepth(child, depth + 1)));
+            }
+
+            const maxDepth = Math.max(1, getMaxDepth(taskList));
+            const unitWidth = 150; // pixels per depth level
+            const totalWidth = (maxDepth + 1) * unitWidth;
+
+            // Assign lanes to leaf nodes and calculate lane spans for parent nodes
+            let laneIndex = 0;
+            const laneAssignments = new Map(); // node -> { startLane, endLane }
+
+            function assignLanes(node) {
+                if (searchTerm && !hasMatchingDescendant(node)) {
+                    return null;
+                }
+
+                if (node.isLeaf || !node.children.length) {
+                    const lane = laneIndex++;
+                    laneAssignments.set(node, { startLane: lane, endLane: lane });
+                    return { startLane: lane, endLane: lane };
+                }
+
+                let minLane = Infinity;
+                let maxLane = -Infinity;
+
+                for (const child of node.children) {
+                    const childLanes = assignLanes(child);
+                    if (childLanes) {
+                        minLane = Math.min(minLane, childLanes.startLane);
+                        maxLane = Math.max(maxLane, childLanes.endLane);
+                    }
+                }
+
+                if (minLane !== Infinity) {
+                    laneAssignments.set(node, { startLane: minLane, endLane: maxLane });
+                    return { startLane: minLane, endLane: maxLane };
+                }
+                return null;
+            }
+
+            // Start from root's children (don't show root itself)
+            for (const child of taskList.children) {
+                assignLanes(child);
+            }
+
+            const totalLanes = laneIndex || 1;
+            const laneHeight = 48;
+
+            // Create timeline container
+            const container = document.createElement('div');
+            container.className = 'timeline-container';
+            container.style.minWidth = `${totalWidth + 40}px`;
+
+            // Create scale header
+            const header = document.createElement('div');
+            header.className = 'timeline-header';
+            const scale = document.createElement('div');
+            scale.className = 'timeline-scale';
+            for (let i = 0; i <= maxDepth; i++) {
+                const mark = document.createElement('div');
+                mark.className = 'timeline-scale-mark';
+                mark.textContent = `Level ${i}`;
+                scale.appendChild(mark);
+            }
+            header.appendChild(scale);
+            container.appendChild(header);
+
+            // Create lanes container
+            const lanesContainer = document.createElement('div');
+            lanesContainer.className = 'timeline-lanes-container';
+            lanesContainer.style.height = `${totalLanes * laneHeight}px`;
+            lanesContainer.style.position = 'relative';
+
+            // Add grid lines
+            for (let i = 1; i <= maxDepth; i++) {
+                const gridLine = document.createElement('div');
+                gridLine.className = 'timeline-grid-line';
+                gridLine.style.left = `${i * unitWidth}px`;
+                lanesContainer.appendChild(gridLine);
+            }
+
+            // Add lane backgrounds
+            for (let i = 0; i < totalLanes; i++) {
+                const lane = document.createElement('div');
+                lane.className = 'timeline-lane';
+                lane.style.position = 'absolute';
+                lane.style.left = '0';
+                lane.style.right = '0';
+                lane.style.top = `${i * laneHeight}px`;
+                lane.style.height = `${laneHeight - 8}px`;
+                lanesContainer.appendChild(lane);
+            }
+
+            // Render task bars
+            function renderTaskBar(node, depth) {
+                if (searchTerm && !hasMatchingDescendant(node)) return;
+
+                const lanes = laneAssignments.get(node);
+                if (!lanes) return;
+
+                const bar = document.createElement('div');
+                bar.className = `timeline-bar ${node.isLeaf ? 'leaf' : 'parent'} ${node.status}`;
+                if (node === selectedNode) bar.classList.add('selected');
+                if (searchTerm && matchesSearch(node)) bar.classList.add('highlight');
+
+                // Calculate position
+                const left = depth * unitWidth + 5;
+                const width = unitWidth - 10;
+                const top = lanes.startLane * laneHeight + 4;
+                const height = (lanes.endLane - lanes.startLane + 1) * laneHeight - 16;
+
+                bar.style.left = `${left}px`;
+                bar.style.width = `${width}px`;
+                bar.style.top = `${top}px`;
+                bar.style.height = `${height}px`;
+
+                // For multi-lane bars, adjust text positioning
+                if (lanes.startLane !== lanes.endLane) {
+                    bar.style.alignItems = 'flex-start';
+                    bar.style.paddingTop = '6px';
+                }
+
+                // Bar content
+                const completionPercentage = node.calculateCompletionPercentage();
+                if (!node.isLeaf) {
+                    const taskCounts = node.countTasksByStatus();
+                    bar.textContent = `${node.name} (${completionPercentage}%)`;
+                    bar.title = `${node.name}\n${taskCounts.new} new, ${taskCounts.inProgress} in-progress, ${taskCounts.done} done`;
+                } else {
+                    bar.textContent = node.name;
+                    bar.title = `${node.name} - ${node.status}`;
+                }
+
+                bar.onclick = (e) => {
+                    e.stopPropagation();
+                    selectedNode = node;
+                    renderView();
+                    document.getElementById('tasklist').focus();
+                };
+
+                lanesContainer.appendChild(bar);
+
+                // Render children
+                if (!node.isLeaf) {
+                    for (const child of node.children) {
+                        renderTaskBar(child, depth + 1);
+                    }
+                }
+            }
+
+            // Render all top-level tasks
+            for (const child of taskList.children) {
+                renderTaskBar(child, 0);
+            }
+
+            container.appendChild(lanesContainer);
+            element.appendChild(container);
+
+            updateStats();
+            updateUndoRedoButtons();
         }
 
         // Statistics
@@ -598,7 +924,7 @@
                     draggedNode = null;
                     updateParentStatuses(taskList);
                     saveState();
-                    renderTaskList();
+                    renderView();
                 };
 
                 container.ondragover = (e) => {
@@ -644,7 +970,7 @@
 
                         // Update statuses and re-render
                         updateParentStatuses(taskList);
-                        renderTaskList();
+                        renderView();
                     }
                 };
 
@@ -661,7 +987,7 @@
                     collapseBtn.onclick = (e) => {
                         e.stopPropagation();
                         currentNode.collapsed = !currentNode.collapsed;
-                        renderTaskList();
+                        renderView();
                         // Refocus for keyboard navigation
                         setTimeout(() => document.getElementById('tasklist').focus(), 0);
                     };
@@ -696,7 +1022,7 @@
                     clickTimeout = setTimeout(() => {
                         if (selectedNode !== currentNode) {
                             selectedNode = currentNode;
-                            renderTaskList();
+                            renderView();
                         }
                         // Refocus the task list div for keyboard navigation
                         document.getElementById('tasklist').focus();
@@ -726,9 +1052,9 @@
                         if (input.value.trim()) {
                             currentNode.name = input.value.trim();
                             saveState();
-                            renderTaskList();
+                            renderView();
                         } else {
-                            renderTaskList();
+                            renderView();
                         }
                     };
 
@@ -739,7 +1065,7 @@
                             saveEdit();
                         } else if (e.key === 'Escape') {
                             e.preventDefault();
-                            renderTaskList();
+                            renderView();
                         }
                     };
 
@@ -773,7 +1099,7 @@
                         currentNode.status = e.target.value;
                         updateParentStatuses(taskList);
                         saveState();
-                        renderTaskList();
+                        renderView();
                         // Refocus for keyboard navigation
                         setTimeout(() => document.getElementById('tasklist').focus(), 0);
                     };
@@ -786,7 +1112,7 @@
                 removeBtn.onclick = (e) => {
                     e.stopPropagation();
                     removeChild(currentNode);
-                    renderTaskList();
+                    renderView();
                     // Refocus for keyboard navigation
                     setTimeout(() => document.getElementById('tasklist').focus(), 0);
                 };
@@ -859,7 +1185,7 @@
             const currentIndex = siblings.indexOf(selectedNode);
             if (currentIndex < siblings.length - 1) {
                 selectedNode = siblings[currentIndex + 1];
-                renderTaskList();
+                renderView();
             }
         }
 
@@ -869,7 +1195,7 @@
             const currentIndex = siblings.indexOf(selectedNode);
             if (currentIndex > 0) {
                 selectedNode = siblings[currentIndex - 1];
-                renderTaskList();
+                renderView();
             }
         }
 
@@ -878,7 +1204,7 @@
             const parent = findParent(taskList, selectedNode);
             if (parent) {
                 selectedNode = parent;
-                renderTaskList();
+                renderView();
             }
         }
 
@@ -890,7 +1216,7 @@
                     selectedNode.collapsed = false;
                 }
                 selectedNode = selectedNode.children[0];
-                renderTaskList();
+                renderView();
             }
         }
 
@@ -913,7 +1239,7 @@
                 node.children.push(newNode);
                 updateParentStatuses(taskList);
                 saveState();
-                renderTaskList();
+                renderView();
             }
             // Refocus for keyboard navigation
             setTimeout(() => document.getElementById('tasklist').focus(), 0);
@@ -928,7 +1254,7 @@
             if (newName && newName.trim()) {
                 selectedNode.name = newName.trim();
                 saveState();
-                renderTaskList();
+                renderView();
             } else if (newName !== null) {
                 alert('Node name cannot be empty');
             }
@@ -945,7 +1271,7 @@
             if (description !== null) {
                 selectedNode.description = description;
                 saveState();
-                renderTaskList();
+                renderView();
             }
             // Refocus for keyboard navigation
             setTimeout(() => document.getElementById('tasklist').focus(), 0);
@@ -979,7 +1305,7 @@
                     updateParentStatuses(taskList);
                     saveState();
                     node = null;
-                    renderTaskList();
+                    renderView();
                 } else {
                     parent.children.forEach(child => removeFromParent(child));
                 }
@@ -1022,7 +1348,7 @@
                         updateParentStatuses(taskList);
                         selectedNode = null;
                         saveState();
-                        renderTaskList();
+                        renderView();
                     } catch (error) {
                         alert('Error importing JSON: ' + error.message);
                     }
@@ -1093,7 +1419,7 @@
                 e.preventDefault();
                 if (!selectedNode.isLeaf && selectedNode.children.length > 0) {
                     selectedNode.collapsed = !selectedNode.collapsed;
-                    renderTaskList();
+                    renderView();
                 }
             }
             // 1 - Set status to 'new' (only for leaf nodes)
@@ -1102,7 +1428,7 @@
                 selectedNode.status = 'new';
                 updateParentStatuses(taskList);
                 saveState();
-                renderTaskList();
+                renderView();
             }
             // 2 - Set status to 'in-progress' (only for leaf nodes)
             else if (e.key === '2' && selectedNode && selectedNode.isLeaf) {
@@ -1110,7 +1436,7 @@
                 selectedNode.status = 'in-progress';
                 updateParentStatuses(taskList);
                 saveState();
-                renderTaskList();
+                renderView();
             }
             // 3 - Set status to 'done' (only for leaf nodes)
             else if (e.key === '3' && selectedNode && selectedNode.isLeaf) {
@@ -1118,7 +1444,7 @@
                 selectedNode.status = 'done';
                 updateParentStatuses(taskList);
                 saveState();
-                renderTaskList();
+                renderView();
             }
         });
 
@@ -1129,7 +1455,7 @@
             }
             selectedNode = taskList; // Set initial selection to root node
             saveState(); // Save initial state
-            renderTaskList(taskList, document.getElementById('tasklist'), 0);
+            renderView();
             // Focus the task list div so keyboard events work
             document.getElementById('tasklist').focus();
         };
