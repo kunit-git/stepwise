@@ -464,6 +464,114 @@
             background: #e9ecef;
             pointer-events: none;
         }
+
+        /* Help Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #495057;
+            font-size: 1.5em;
+        }
+
+        .modal-close {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            font-size: 1.2em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: #c82333;
+            transform: scale(1.1);
+        }
+
+        .shortcuts-section {
+            margin-bottom: 20px;
+        }
+
+        .shortcuts-section h3 {
+            color: #667eea;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .shortcut-item:last-child {
+            border-bottom: none;
+        }
+
+        .shortcut-keys {
+            display: flex;
+            gap: 5px;
+        }
+
+        .shortcut-keys kbd {
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+            font-family: monospace;
+            font-size: 0.9em;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .shortcut-description {
+            color: #495057;
+            font-size: 0.95em;
+        }
     </style>
 </head>
 <body>
@@ -519,22 +627,119 @@
                 </label>
             </div>
 
-            <div class="keyboard-hint">
-                <strong>Keyboard Shortcuts:</strong><br>
-                <kbd>↑</kbd><kbd>↓</kbd> Navigate siblings<br>
-                <kbd>←</kbd> Go to parent<br>
-                <kbd>→</kbd> Go to first child<br>
-                <kbd>Space</kbd> Expand/collapse node<br>
-                <kbd>Enter</kbd> Add child node<br>
-                <kbd>F2</kbd> Rename node<br>
-                <kbd>Del</kbd> Remove node<br>
-                <kbd>Ctrl+Z</kbd> Undo<br>
-                <kbd>Ctrl+Y</kbd> Redo<br>
-                <kbd>Ctrl+F</kbd> Search<br>
-                <strong>Double-click</strong> node to edit inline
+            <div class="control-section">
+                <button onclick="openHelpModal()">❓ Help & Shortcuts</button>
             </div>
         </div>
         <div id="tasklist" tabindex="0"></div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⌨️ Keyboard Shortcuts</h2>
+                <button class="modal-close" onclick="closeHelpModal()">✕</button>
+            </div>
+
+            <div class="shortcuts-section">
+                <h3>Navigation</h3>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>↑</kbd> <kbd>↓</kbd></div>
+                    <div class="shortcut-description">Navigate to previous/next sibling</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>←</kbd></div>
+                    <div class="shortcut-description">Go to parent node</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>→</kbd></div>
+                    <div class="shortcut-description">Go to first child node</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Space</kbd></div>
+                    <div class="shortcut-description">Expand/collapse node</div>
+                </div>
+            </div>
+
+            <div class="shortcuts-section">
+                <h3>Editing</h3>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Enter</kbd></div>
+                    <div class="shortcut-description">Add child node</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>F2</kbd></div>
+                    <div class="shortcut-description">Rename selected node</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Del</kbd></div>
+                    <div class="shortcut-description">Remove selected node</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></div>
+                    <div class="shortcut-description">Set status (new/in-progress/done)</div>
+                </div>
+            </div>
+
+            <div class="shortcuts-section">
+                <h3>Reordering</h3>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>↑</kbd></div>
+                    <div class="shortcut-description">Move node up</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>↓</kbd></div>
+                    <div class="shortcut-description">Move node down</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Home</kbd></div>
+                    <div class="shortcut-description">Move node to first position</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>End</kbd></div>
+                    <div class="shortcut-description">Move node to last position</div>
+                </div>
+            </div>
+
+            <div class="shortcuts-section">
+                <h3>General</h3>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Z</kbd></div>
+                    <div class="shortcut-description">Undo</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Y</kbd></div>
+                    <div class="shortcut-description">Redo</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>F</kbd></div>
+                    <div class="shortcut-description">Focus search box</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>H</kbd></div>
+                    <div class="shortcut-description">Show/hide this help</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys"><kbd>ESC</kbd></div>
+                    <div class="shortcut-description">Close help modal</div>
+                </div>
+            </div>
+
+            <div class="shortcuts-section">
+                <h3>Mouse Actions</h3>
+                <div class="shortcut-item">
+                    <div class="shortcut-description" style="font-style: italic;">
+                        Double-click node name to edit inline
+                    </div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-description" style="font-style: italic;">
+                        Drag and drop nodes to reorganize hierarchy
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -613,6 +818,7 @@
         let maxHistorySize = 50;
         let searchTerm = '';
         let viewMode = 'hierarchy'; // 'hierarchy' or 'timeline'
+        let autoScrollInterval = null;
 
         // Undo/Redo functionality
         function saveState() {
@@ -695,6 +901,68 @@
                 renderTimelineView();
             } else {
                 renderTaskList();
+            }
+            scrollToSelectedNode();
+        }
+
+        function scrollToSelectedNode() {
+            if (!selectedNode) return;
+
+            // Give the DOM time to update
+            setTimeout(() => {
+                const containers = document.querySelectorAll('.node-container.selected, .timeline-bar.selected');
+                if (containers.length > 0) {
+                    containers[0].scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                        inline: 'nearest'
+                    });
+                }
+            }, 50);
+        }
+
+        // Auto-scroll during drag operations
+        function startAutoScroll(direction, scrollSpeed = 10) {
+            stopAutoScroll();
+            const taskListElement = document.getElementById('tasklist');
+
+            autoScrollInterval = setInterval(() => {
+                if (direction === 'up') {
+                    taskListElement.scrollTop -= scrollSpeed;
+                } else if (direction === 'down') {
+                    taskListElement.scrollTop += scrollSpeed;
+                }
+            }, 20);
+        }
+
+        function stopAutoScroll() {
+            if (autoScrollInterval) {
+                clearInterval(autoScrollInterval);
+                autoScrollInterval = null;
+            }
+        }
+
+        function handleDragAutoScroll(e) {
+            const taskListElement = document.getElementById('tasklist');
+            const rect = taskListElement.getBoundingClientRect();
+            const mouseY = e.clientY;
+            const edgeThreshold = 50; // pixels from edge to trigger auto-scroll
+            const fastScrollThreshold = 20; // pixels from edge for faster scrolling
+
+            // Calculate distance from edges
+            const distanceFromTop = mouseY - rect.top;
+            const distanceFromBottom = rect.bottom - mouseY;
+
+            if (distanceFromTop < edgeThreshold && distanceFromTop > 0) {
+                // Near top edge
+                const speed = distanceFromTop < fastScrollThreshold ? 20 : 10;
+                startAutoScroll('up', speed);
+            } else if (distanceFromBottom < edgeThreshold && distanceFromBottom > 0) {
+                // Near bottom edge
+                const speed = distanceFromBottom < fastScrollThreshold ? 20 : 10;
+                startAutoScroll('down', speed);
+            } else {
+                stopAutoScroll();
             }
         }
 
@@ -922,6 +1190,7 @@
                 container.ondragend = () => {
                     container.classList.remove('dragging');
                     draggedNode = null;
+                    stopAutoScroll();
                     updateParentStatuses(taskList);
                     saveState();
                     renderView();
@@ -929,6 +1198,7 @@
 
                 container.ondragover = (e) => {
                     e.preventDefault();
+                    handleDragAutoScroll(e);
                 };
 
                 container.ondragenter = (e) => {
@@ -946,6 +1216,7 @@
                     e.stopPropagation();
 					e.preventDefault();
                     container.classList.remove('drag-over');
+                    stopAutoScroll();
 					console.log(draggedNode.name + " - " + currentNode.name);
                     if (draggedNode && draggedNode !== currentNode && draggedNode !== taskList) {
                         // Find and remove draggedNode from its original parent
@@ -1220,6 +1491,83 @@
             }
         }
 
+        // Node reordering functions
+        function moveNodeUp() {
+            if (!selectedNode || selectedNode === taskList) return;
+            const parent = findParent(taskList, selectedNode);
+            if (!parent) return;
+
+            const siblings = parent.children;
+            const currentIndex = siblings.indexOf(selectedNode);
+
+            if (currentIndex > 0) {
+                // Swap with previous sibling
+                [siblings[currentIndex - 1], siblings[currentIndex]] =
+                [siblings[currentIndex], siblings[currentIndex - 1]];
+
+                updateParentStatuses(taskList);
+                saveState();
+                renderView();
+            }
+        }
+
+        function moveNodeDown() {
+            if (!selectedNode || selectedNode === taskList) return;
+            const parent = findParent(taskList, selectedNode);
+            if (!parent) return;
+
+            const siblings = parent.children;
+            const currentIndex = siblings.indexOf(selectedNode);
+
+            if (currentIndex < siblings.length - 1) {
+                // Swap with next sibling
+                [siblings[currentIndex], siblings[currentIndex + 1]] =
+                [siblings[currentIndex + 1], siblings[currentIndex]];
+
+                updateParentStatuses(taskList);
+                saveState();
+                renderView();
+            }
+        }
+
+        function moveNodeToFirst() {
+            if (!selectedNode || selectedNode === taskList) return;
+            const parent = findParent(taskList, selectedNode);
+            if (!parent) return;
+
+            const siblings = parent.children;
+            const currentIndex = siblings.indexOf(selectedNode);
+
+            if (currentIndex > 0) {
+                // Remove from current position and insert at beginning
+                const node = siblings.splice(currentIndex, 1)[0];
+                siblings.unshift(node);
+
+                updateParentStatuses(taskList);
+                saveState();
+                renderView();
+            }
+        }
+
+        function moveNodeToLast() {
+            if (!selectedNode || selectedNode === taskList) return;
+            const parent = findParent(taskList, selectedNode);
+            if (!parent) return;
+
+            const siblings = parent.children;
+            const currentIndex = siblings.indexOf(selectedNode);
+
+            if (currentIndex < siblings.length - 1) {
+                // Remove from current position and insert at end
+                const node = siblings.splice(currentIndex, 1)[0];
+                siblings.push(node);
+
+                updateParentStatuses(taskList);
+                saveState();
+                renderView();
+            }
+        }
+
         function addNode() {
             if (!selectedNode) {
                 alert('Please select a parent node first');
@@ -1357,8 +1705,50 @@
             }
         }
 
+        // Help Modal functions
+        function openHelpModal() {
+            const modal = document.getElementById('helpModal');
+            if (modal) {
+                modal.classList.add('visible');
+            }
+        }
+
+        function closeHelpModal() {
+            const modal = document.getElementById('helpModal');
+            if (modal) {
+                modal.classList.remove('visible');
+            }
+            // Refocus the task list for keyboard navigation
+            setTimeout(() => document.getElementById('tasklist').focus(), 0);
+        }
+
+        // Close modal when clicking outside the content
+        document.addEventListener('click', function(e) {
+            const modal = document.getElementById('helpModal');
+            if (modal && e.target === modal) {
+                closeHelpModal();
+            }
+        });
+
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
+            // ESC - Close help modal
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('helpModal');
+                if (modal && modal.classList.contains('visible')) {
+                    e.preventDefault();
+                    closeHelpModal();
+                    return;
+                }
+            }
+
+            // Ctrl+H - Open help modal
+            if (e.ctrlKey && e.key === 'h') {
+                e.preventDefault();
+                openHelpModal();
+                return;
+            }
+
             // Ignore if typing in an input or textarea
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
                 return;
@@ -1393,6 +1783,26 @@
             else if (e.key === 'Delete' && selectedNode) {
                 e.preventDefault();
                 removeNode();
+            }
+            // Ctrl+Shift+Up - Move node up in sibling list
+            else if (e.ctrlKey && e.shiftKey && e.key === 'ArrowUp' && selectedNode) {
+                e.preventDefault();
+                moveNodeUp();
+            }
+            // Ctrl+Shift+Down - Move node down in sibling list
+            else if (e.ctrlKey && e.shiftKey && e.key === 'ArrowDown' && selectedNode) {
+                e.preventDefault();
+                moveNodeDown();
+            }
+            // Ctrl+Shift+Home - Move node to first position
+            else if (e.ctrlKey && e.shiftKey && e.key === 'Home' && selectedNode) {
+                e.preventDefault();
+                moveNodeToFirst();
+            }
+            // Ctrl+Shift+End - Move node to last position
+            else if (e.ctrlKey && e.shiftKey && e.key === 'End' && selectedNode) {
+                e.preventDefault();
+                moveNodeToLast();
             }
             // Arrow Up - Navigate to previous sibling
             else if (e.key === 'ArrowUp' && selectedNode) {
