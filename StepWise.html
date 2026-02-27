@@ -244,6 +244,40 @@
             margin-bottom: 10px;
         }
 
+        #projectSelect {
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-family: inherit;
+            background: #fff;
+            color: #212529;
+            cursor: pointer;
+        }
+        #projectSelect:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+
+        .snapshot-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 2px;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 11px;
+            gap: 4px;
+        }
+        .snapshot-item:last-child { border-bottom: none; }
+        .snapshot-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .snapshot-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .snapshot-meta { color: #6c757d; font-size: 10px; }
+        .snapshot-actions { display: flex; gap: 2px; flex-shrink: 0; }
+        .snapshot-actions button { padding: 2px 5px; font-size: 11px; }
+
         .keyboard-hint {
             font-size: 0.75em;
             color: #6c757d;
@@ -265,7 +299,6 @@
 
         select {
             cursor: pointer;
-            float: right;
         }
 
         .node-description {
@@ -579,6 +612,16 @@
         <div id="controls">
             <h2>StepWise</h2>
 
+            <div class="control-section">
+                <div class="section-title">Project</div>
+                <select id="projectSelect" onchange="switchProject(this.value)"></select>
+                <div style="display:flex; gap:4px; margin-top:4px;">
+                    <button onclick="createNewProject()" style="flex:1; padding:6px 4px; font-size:0.8em;">New</button>
+                    <button onclick="renameCurrentProject()" style="flex:1; padding:6px 4px; font-size:0.8em;">Rename</button>
+                    <button onclick="deleteCurrentProject()" style="flex:1; padding:6px 4px; font-size:0.8em;">Delete</button>
+                </div>
+            </div>
+
             <div class="stats-container">
                 <div class="stat-item">
                     <span class="stat-label">Total Nodes:</span>
@@ -625,6 +668,16 @@
                 <label for="importFile" style="display: block;">
                     <input type="file" id="importFile" accept=".json" onchange="importFromJson()">
                 </label>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">Snapshots</div>
+                <div style="display:flex; gap:4px; align-items:center;">
+                    <input type="text" id="snapshotName" placeholder="Snapshot name..."
+                           style="flex:1; padding:4px 6px; font-size:12px; border:1px solid #ced4da; border-radius:4px; background:#fff; color:#212529;">
+                    <button onclick="saveSnapshot()" title="Save snapshot">💾 Save</button>
+                </div>
+                <div id="snapshotList" style="margin-top:6px; max-height:180px; overflow-y:auto;"></div>
             </div>
 
             <div class="control-section">
@@ -819,6 +872,11 @@
         let searchTerm = '';
         let viewMode = 'hierarchy'; // 'hierarchy' or 'timeline'
         let autoScrollInterval = null;
+        let activeProjectId = null;
+
+        // Per-project storage key helpers
+        function currentKey()   { return `stepwise_proj_${activeProjectId}_current`; }
+        function snapshotsKey() { return `stepwise_proj_${activeProjectId}_snapshots`; }
 
         // Undo/Redo functionality
         function saveState() {
@@ -833,6 +891,10 @@
                 historyIndex++;
             }
             updateUndoRedoButtons();
+            if (activeProjectId !== null) {
+                localStorage.setItem(currentKey(), state);
+                touchProjectModified();
+            }
         }
 
         function undo() {
@@ -1668,7 +1730,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${taskList.name}.json`;
+            a.download = `${getActiveProjectName()}.json`;
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -1697,6 +1759,7 @@
                         selectedNode = null;
                         saveState();
                         renderView();
+                        renderProjectSelect();
                     } catch (error) {
                         alert('Error importing JSON: ' + error.message);
                     }
@@ -1729,6 +1792,228 @@
                 closeHelpModal();
             }
         });
+        // localStorage persistence
+        function loadSavedState() {
+            const saved = localStorage.getItem(currentKey());
+            if (saved) {
+                try {
+                    taskList = convertToNode(JSON.parse(saved));
+                    updateParentStatuses(taskList);
+                } catch (e) { /* ignore corrupt data */ }
+            }
+        }
+
+        // Snapshots
+        function getSnapshots() {
+            try {
+                return JSON.parse(localStorage.getItem(snapshotsKey()) || '[]');
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function countTasks(node) {
+            if (node.isLeaf) return 1;
+            return node.children.reduce((sum, child) => sum + countTasks(child), 0);
+        }
+
+        function saveSnapshot() {
+            const input = document.getElementById('snapshotName');
+            const name = input.value.trim() || new Date().toLocaleString();
+            const snapshots = getSnapshots();
+            snapshots.push({
+                id: Date.now(),
+                name: name,
+                date: new Date().toISOString(),
+                data: JSON.stringify(taskList),
+                taskCount: countTasks(taskList)
+            });
+            localStorage.setItem(snapshotsKey(), JSON.stringify(snapshots));
+            input.value = '';
+            renderSnapshotList();
+        }
+
+        function deleteSnapshot(id) {
+            const snapshots = getSnapshots().filter(s => s.id !== id);
+            localStorage.setItem(snapshotsKey(), JSON.stringify(snapshots));
+            renderSnapshotList();
+        }
+
+        function restoreSnapshot(id) {
+            const snapshot = getSnapshots().find(s => s.id === id);
+            if (!snapshot) return;
+            taskList = convertToNode(JSON.parse(snapshot.data));
+            updateParentStatuses(taskList);
+            selectedNode = null;
+            saveState();
+            renderView();
+            renderSnapshotList();
+        }
+
+        function formatSnapshotDate(iso) {
+            const d = new Date(iso);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderSnapshotList() {
+            const container = document.getElementById('snapshotList');
+            if (!container) return;
+            const snapshots = getSnapshots().slice().reverse();
+            if (!snapshots.length) {
+                container.innerHTML = '<div style="color:#6c757d; font-size:11px; padding:4px 0;">No snapshots yet</div>';
+                return;
+            }
+            container.innerHTML = snapshots.map(s => `
+                <div class="snapshot-item">
+                    <div class="snapshot-info">
+                        <span class="snapshot-name" title="${s.name}">${s.name}</span>
+                        <span class="snapshot-meta">${formatSnapshotDate(s.date)} &middot; ${s.taskCount} task${s.taskCount !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div class="snapshot-actions">
+                        <button onclick="restoreSnapshot(${s.id})" title="Restore">↩</button>
+                        <button onclick="deleteSnapshot(${s.id})" title="Delete">🗑</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Project management
+        function getProjects() {
+            try {
+                return JSON.parse(localStorage.getItem('stepwise_projects') || '[]');
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveProjects(projects) {
+            localStorage.setItem('stepwise_projects', JSON.stringify(projects));
+        }
+
+        function getActiveProjectName() {
+            const project = getProjects().find(p => p.id === activeProjectId);
+            return project ? project.name : 'Project';
+        }
+
+        function touchProjectModified() {
+            const projects = getProjects();
+            const project = projects.find(p => p.id === activeProjectId);
+            if (project) {
+                project.lastModified = new Date().toISOString();
+                saveProjects(projects);
+            }
+        }
+
+        function initProjects() {
+            const projects = getProjects();
+            if (projects.length > 0) {
+                // Restore active project
+                const savedActive = localStorage.getItem('stepwise_active_project');
+                const found = projects.find(p => String(p.id) === String(savedActive));
+                activeProjectId = found ? found.id : projects[0].id;
+                localStorage.setItem('stepwise_active_project', activeProjectId);
+                loadSavedState();
+            } else {
+                // Migrate old flat keys or start fresh
+                const id = Date.now();
+                const oldCurrent = localStorage.getItem('stepwise_current');
+                const oldSnapshots = localStorage.getItem('stepwise_snapshots');
+                const newProject = { id, name: 'Default', lastModified: new Date().toISOString() };
+                saveProjects([newProject]);
+                activeProjectId = id;
+                localStorage.setItem('stepwise_active_project', id);
+                if (oldCurrent) {
+                    localStorage.setItem(currentKey(), oldCurrent);
+                    localStorage.removeItem('stepwise_current');
+                }
+                if (oldSnapshots) {
+                    localStorage.setItem(snapshotsKey(), oldSnapshots);
+                    localStorage.removeItem('stepwise_snapshots');
+                }
+                loadSavedState();
+            }
+        }
+
+        function renderProjectSelect() {
+            const select = document.getElementById('projectSelect');
+            if (!select) return;
+            const projects = getProjects();
+            select.innerHTML = projects.map(p =>
+                `<option value="${p.id}"${p.id === activeProjectId ? ' selected' : ''}>${p.name}</option>`
+            ).join('');
+        }
+
+        function createNewProject() {
+            const name = prompt('Project name:', 'New Project');
+            if (!name || !name.trim()) return;
+            const id = Date.now();
+            const projects = getProjects();
+            projects.push({ id, name: name.trim(), lastModified: new Date().toISOString() });
+            saveProjects(projects);
+            activeProjectId = id;
+            localStorage.setItem('stepwise_active_project', id);
+            taskList = new Node('Root', false);
+            history = [];
+            historyIndex = -1;
+            selectedNode = taskList;
+            saveState();
+            renderView();
+            renderProjectSelect();
+            renderSnapshotList();
+        }
+
+        function renameCurrentProject() {
+            const current = getActiveProjectName();
+            const name = prompt('New project name:', current);
+            if (!name || !name.trim()) return;
+            const projects = getProjects();
+            const project = projects.find(p => p.id === activeProjectId);
+            if (project) {
+                project.name = name.trim();
+                saveProjects(projects);
+                renderProjectSelect();
+            }
+        }
+
+        function deleteCurrentProject() {
+            const name = getActiveProjectName();
+            if (!confirm(`Delete project "${name}"? This cannot be undone.`)) return;
+            localStorage.removeItem(currentKey());
+            localStorage.removeItem(snapshotsKey());
+            let projects = getProjects().filter(p => p.id !== activeProjectId);
+            if (projects.length === 0) {
+                const id = Date.now();
+                projects = [{ id, name: 'Default', lastModified: new Date().toISOString() }];
+            }
+            saveProjects(projects);
+            activeProjectId = projects[0].id;
+            localStorage.setItem('stepwise_active_project', activeProjectId);
+            taskList = new Node('Root', false);
+            history = [];
+            historyIndex = -1;
+            loadSavedState();
+            selectedNode = taskList;
+            saveState();
+            renderView();
+            renderProjectSelect();
+            renderSnapshotList();
+        }
+
+        function switchProject(id) {
+            id = typeof id === 'string' ? parseInt(id, 10) : id;
+            if (id === activeProjectId) return;
+            activeProjectId = id;
+            localStorage.setItem('stepwise_active_project', id);
+            taskList = new Node('Root', false);
+            history = [];
+            historyIndex = -1;
+            loadSavedState();
+            selectedNode = taskList;
+            saveState();
+            renderView();
+            renderProjectSelect();
+            renderSnapshotList();
+        }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
@@ -1863,23 +2148,15 @@
                 console.error('Task list container not found on page load');
                 return;
             }
+            initProjects(); // initialize projects, migrate old data, load active project state
             selectedNode = taskList; // Set initial selection to root node
             saveState(); // Save initial state
             renderView();
+            renderProjectSelect();
+            renderSnapshotList();
             // Focus the task list div so keyboard events work
             document.getElementById('tasklist').focus();
         };
-
-        // Warn user before leaving the page
-        window.addEventListener('beforeunload', function(e) {
-            // Only show warning if there's actual data (more than just the root node)
-            if (taskList.children.length > 0) {
-                const confirmationMessage = 'All your information will be lost. Are you sure you want to leave?';
-                e.preventDefault();
-                e.returnValue = confirmationMessage; // For most browsers
-                return confirmationMessage; // For some older browsers
-            }
-        });
     </script>
 </body>
 </html>
