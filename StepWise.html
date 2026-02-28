@@ -933,7 +933,24 @@
         // Search functionality
         function searchNodes() {
             searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            if (searchTerm) {
+                expandAncestorsOfMatches(taskList);
+            }
             renderView();
+        }
+
+        function expandAncestorsOfMatches(node) {
+            if (node.isLeaf || !node.children.length) return false;
+            let hasMatch = false;
+            for (const child of node.children) {
+                if (matchesSearch(child) || expandAncestorsOfMatches(child)) {
+                    hasMatch = true;
+                }
+            }
+            if (hasMatch) {
+                node.collapsed = false;
+            }
+            return hasMatch;
         }
 
         function matchesSearch(node) {
@@ -1034,19 +1051,42 @@
             if (!element) return;
             element.innerHTML = '';
 
-            // Get max depth of the tree
-            function getMaxDepth(node, depth = 0) {
-                if (node.isLeaf || !node.children.length) return depth;
-                return Math.max(...node.children.map(child => getMaxDepth(child, depth + 1)));
+            // Calculate duration for each node (leaf = 1 unit, parent = sum of children)
+            const durations = new Map();
+            function getDuration(node) {
+                if (durations.has(node)) return durations.get(node);
+                let dur;
+                if (node.isLeaf || !node.children.length) {
+                    dur = 1;
+                } else {
+                    const visibleChildren = searchTerm
+                        ? node.children.filter(c => hasMatchingDescendant(c))
+                        : node.children;
+                    dur = visibleChildren.reduce((sum, child) => sum + getDuration(child), 0) || 1;
+                }
+                durations.set(node, dur);
+                return dur;
             }
 
-            const maxDepth = Math.max(1, getMaxDepth(taskList));
-            const unitWidth = 150; // pixels per depth level
-            const totalWidth = (maxDepth + 1) * unitWidth;
+            // Calculate start times (children are sequential within parent)
+            const startTimes = new Map();
+            function assignStartTimes(node, start) {
+                startTimes.set(node, start);
+                if (!node.isLeaf && node.children.length) {
+                    let childStart = start;
+                    const visibleChildren = searchTerm
+                        ? node.children.filter(c => hasMatchingDescendant(c))
+                        : node.children;
+                    for (const child of visibleChildren) {
+                        assignStartTimes(child, childStart);
+                        childStart += getDuration(child);
+                    }
+                }
+            }
 
             // Assign lanes to leaf nodes and calculate lane spans for parent nodes
             let laneIndex = 0;
-            const laneAssignments = new Map(); // node -> { startLane, endLane }
+            const laneAssignments = new Map();
 
             function assignLanes(node) {
                 if (searchTerm && !hasMatchingDescendant(node)) {
@@ -1077,11 +1117,19 @@
                 return null;
             }
 
-            // Start from root's children (don't show root itself)
+            // Process root's children sequentially
+            let timeOffset = 0;
             for (const child of taskList.children) {
+                if (searchTerm && !hasMatchingDescendant(child)) continue;
+                getDuration(child);
+                assignStartTimes(child, timeOffset);
+                timeOffset += getDuration(child);
                 assignLanes(child);
             }
 
+            const totalTimeUnits = timeOffset || 1;
+            const unitWidth = 150; // pixels per time unit
+            const totalWidth = totalTimeUnits * unitWidth;
             const totalLanes = laneIndex || 1;
             const laneHeight = 48;
 
@@ -1093,12 +1141,17 @@
             // Create scale header
             const header = document.createElement('div');
             header.className = 'timeline-header';
+            header.style.width = `${totalWidth}px`;
             const scale = document.createElement('div');
             scale.className = 'timeline-scale';
-            for (let i = 0; i <= maxDepth; i++) {
+            scale.style.width = `${totalWidth}px`;
+            for (let i = 0; i < totalTimeUnits; i++) {
                 const mark = document.createElement('div');
                 mark.className = 'timeline-scale-mark';
-                mark.textContent = `Level ${i}`;
+                mark.style.width = `${unitWidth}px`;
+                mark.style.minWidth = `${unitWidth}px`;
+                mark.style.flex = 'none';
+                mark.textContent = `${i + 1}`;
                 scale.appendChild(mark);
             }
             header.appendChild(scale);
@@ -1109,9 +1162,10 @@
             lanesContainer.className = 'timeline-lanes-container';
             lanesContainer.style.height = `${totalLanes * laneHeight}px`;
             lanesContainer.style.position = 'relative';
+            lanesContainer.style.width = `${totalWidth}px`;
 
-            // Add grid lines
-            for (let i = 1; i <= maxDepth; i++) {
+            // Add grid lines at each time unit
+            for (let i = 1; i < totalTimeUnits; i++) {
                 const gridLine = document.createElement('div');
                 gridLine.className = 'timeline-grid-line';
                 gridLine.style.left = `${i * unitWidth}px`;
@@ -1131,20 +1185,23 @@
             }
 
             // Render task bars
-            function renderTaskBar(node, depth) {
+            function renderTaskBar(node) {
                 if (searchTerm && !hasMatchingDescendant(node)) return;
 
                 const lanes = laneAssignments.get(node);
                 if (!lanes) return;
+                const start = startTimes.get(node);
+                if (start === undefined) return;
+                const duration = getDuration(node);
 
                 const bar = document.createElement('div');
                 bar.className = `timeline-bar ${node.isLeaf ? 'leaf' : 'parent'} ${node.status}`;
                 if (node === selectedNode) bar.classList.add('selected');
                 if (searchTerm && matchesSearch(node)) bar.classList.add('highlight');
 
-                // Calculate position
-                const left = depth * unitWidth + 5;
-                const width = unitWidth - 10;
+                // Position based on time
+                const left = start * unitWidth + 5;
+                const width = duration * unitWidth - 10;
                 const top = lanes.startLane * laneHeight + 4;
                 const height = (lanes.endLane - lanes.startLane + 1) * laneHeight - 16;
 
@@ -1164,7 +1221,7 @@
                 if (!node.isLeaf) {
                     const taskCounts = node.countTasksByStatus();
                     bar.textContent = `${node.name} (${completionPercentage}%)`;
-                    bar.title = `${node.name}\n${taskCounts.new} new, ${taskCounts.inProgress} in-progress, ${taskCounts.done} done`;
+                    bar.title = `${node.name}\nDuration: ${duration} units\n${taskCounts.new} new, ${taskCounts.inProgress} in-progress, ${taskCounts.done} done`;
                 } else {
                     bar.textContent = node.name;
                     bar.title = `${node.name} - ${node.status}`;
@@ -1182,14 +1239,14 @@
                 // Render children
                 if (!node.isLeaf) {
                     for (const child of node.children) {
-                        renderTaskBar(child, depth + 1);
+                        renderTaskBar(child);
                     }
                 }
             }
 
             // Render all top-level tasks
             for (const child of taskList.children) {
-                renderTaskBar(child, 0);
+                renderTaskBar(child);
             }
 
             container.appendChild(lanesContainer);
