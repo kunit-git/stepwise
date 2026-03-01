@@ -1390,7 +1390,7 @@
                 // For non-leaf nodes, show task counts
                 if (!currentNode.isLeaf) {
                     const taskCounts = currentNode.countTasksByStatus();
-                    nameSpan.textContent = `${currentNode.name} (${completionPercentage}%, ${taskCounts.new} new, ${taskCounts.inProgress} in-progress)`;
+                    nameSpan.textContent = `${currentNode.name} (${completionPercentage}%, ${taskCounts.new} new, ${taskCounts.inProgress} in-progress, ${taskCounts.done} done)`;
                 } else {
                     nameSpan.textContent = `${currentNode.name} (${completionPercentage}%)`;
                 }
