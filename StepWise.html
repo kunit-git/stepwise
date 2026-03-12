@@ -445,18 +445,24 @@
         }
 
         .timeline-bar.parent.new {
-            background: linear-gradient(135deg, #d6d8db 0%, #ced4da 100%);
+            background: linear-gradient(135deg, rgba(214,216,219,0.4) 0%, rgba(206,212,218,0.4) 100%);
             color: #343a40;
+            box-shadow: none;
+            border: 1px solid rgba(206,212,218,0.5);
         }
 
         .timeline-bar.parent.in-progress {
-            background: linear-gradient(135deg, #ffe69c 0%, #ffca2c 100%);
+            background: linear-gradient(135deg, rgba(255,230,156,0.4) 0%, rgba(255,202,44,0.4) 100%);
             color: #664d03;
+            box-shadow: none;
+            border: 1px solid rgba(255,202,44,0.5);
         }
 
         .timeline-bar.parent.done {
-            background: linear-gradient(135deg, #badbcc 0%, #198754 100%);
+            background: linear-gradient(135deg, rgba(186,219,204,0.4) 0%, rgba(25,135,84,0.4) 100%);
             color: #0a3622;
+            box-shadow: none;
+            border: 1px solid rgba(25,135,84,0.5);
         }
 
         .timeline-header {
@@ -495,6 +501,16 @@
             width: 1px;
             background: #e9ecef;
             pointer-events: none;
+        }
+
+        .timeline-bar-label {
+            color: #343a40;
+        }
+        .timeline-bar-label.in-progress {
+            color: #664d03;
+        }
+        .timeline-bar-label.done {
+            color: #0a3622;
         }
 
         /* Help Modal Styles */
@@ -1094,12 +1110,15 @@
 
                 if (node.isLeaf || !node.children.length) {
                     const lane = laneIndex++;
-                    laneAssignments.set(node, { startLane: lane, endLane: lane });
+                    laneAssignments.set(node, { startLane: lane, endLane: lane, labelLane: lane });
                     return { startLane: lane, endLane: lane };
                 }
 
-                let minLane = Infinity;
-                let maxLane = -Infinity;
+                // Reserve a dedicated label lane for this parent
+                const labelLane = laneIndex++;
+
+                let minLane = labelLane;
+                let maxLane = labelLane;
 
                 for (const child of node.children) {
                     const childLanes = assignLanes(child);
@@ -1109,11 +1128,8 @@
                     }
                 }
 
-                if (minLane !== Infinity) {
-                    laneAssignments.set(node, { startLane: minLane, endLane: maxLane });
-                    return { startLane: minLane, endLane: maxLane };
-                }
-                return null;
+                laneAssignments.set(node, { startLane: minLane, endLane: maxLane, labelLane: labelLane });
+                return { startLane: minLane, endLane: maxLane };
             }
 
             // Process root's children sequentially
@@ -1208,19 +1224,35 @@
                 bar.style.width = `${width}px`;
                 bar.style.top = `${top}px`;
                 bar.style.height = `${height}px`;
-
-                // For multi-lane bars, adjust text positioning
-                if (lanes.startLane !== lanes.endLane) {
-                    bar.style.alignItems = 'flex-start';
-                    bar.style.paddingTop = '6px';
-                }
+                bar.style.zIndex = node.isLeaf ? '1' : '0';
 
                 // Bar content
                 const completionPercentage = node.calculateCompletionPercentage();
-                if (!node.isLeaf) {
+                if (!node.isLeaf && lanes.labelLane !== undefined) {
+                    // Parent bar: no text on the spanning bar itself
                     const taskCounts = node.countTasksByStatus();
-                    bar.textContent = `${node.name} (${completionPercentage}%)`;
                     bar.title = `${node.name}\nDuration: ${duration} units\n${taskCounts.new} new, ${taskCounts.inProgress} in-progress, ${taskCounts.done} done`;
+
+                    // Create a separate label element in the dedicated label lane
+                    const label = document.createElement('div');
+                    label.className = `timeline-bar-label ${node.status}`;
+                    label.style.position = 'absolute';
+                    label.style.left = `${left}px`;
+                    label.style.width = `${width}px`;
+                    label.style.top = `${lanes.labelLane * laneHeight + 4}px`;
+                    label.style.height = `${laneHeight - 16}px`;
+                    label.style.display = 'flex';
+                    label.style.alignItems = 'center';
+                    label.style.padding = '0 10px';
+                    label.style.fontSize = '0.85em';
+                    label.style.fontWeight = '600';
+                    label.style.whiteSpace = 'nowrap';
+                    label.style.overflow = 'hidden';
+                    label.style.textOverflow = 'ellipsis';
+                    label.style.zIndex = '2';
+                    label.style.pointerEvents = 'none';
+                    label.textContent = `${node.name} (${completionPercentage}%)`;
+                    lanesContainer.appendChild(label);
                 } else {
                     bar.textContent = node.name;
                     bar.title = `${node.name} - ${node.status}`;
